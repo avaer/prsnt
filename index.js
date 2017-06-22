@@ -1,23 +1,33 @@
-const path = require('path');
-const fs = require('fs');
+const http = require('http');
 
+const express = require('express');
 const bodyParser = require('body-parser');
 const bodyParserJson = bodyParser.json();
 const LRU = require('lru-cache');
 const ipAddress = require('ip-address');
 
-const SERVER_EXPIRY_INTERVAL = 60 * 1000;
+const SERVER_EXPIRY = 60 * 1000;
 
-const listen = (a, config) => {
-  const {dirname, dataDirectory} = a;
+class Prsnt {
+  constructor({serverExpiry = SERVER_EXPIRY} = {}) {
+    this.serverExpiry = serverExpiry;
+  }
 
-  const serversCache = new LRU({
-    maxAge: SERVER_EXPIRY_INTERVAL,
-  });
-  const _ip6To4 = ip6 => new ipAddress.Address6(ip6).to4().address;
-  // const _ip4To6 = ip4 => '::ffff:' + ip4;
+  requestApp() {
+     const {serverExpiry} = this;
 
-  const _listenServers = () => new Promise((accept, reject) => {
+    const app = express();
+
+    const serversCache = new LRU({
+      maxAge: serverExpiry,
+    });
+    const _ip6To4 = ip6 => new ipAddress.Address6(ip6).to4().address;
+    // const _ip4To6 = ip4 => '::ffff:' + ip4;
+    const _getServers = () => serversCache.keys()
+      .map(k => serversCache.get(k))
+      .filter(v => v !== undefined)
+      .sort((a, b) => b.timestamp - a.timestamp);
+
     class Server {
       constructor(name, url, protocol, port, users, running, address, timestamp) {
         this.name = name;
@@ -31,24 +41,22 @@ const listen = (a, config) => {
       }
     }
 
-    const _getServers = () => serversCache.keys()
-      .map(k => serversCache.get(k))
-      .filter(v => v !== undefined)
-      .sort((a, b) => b.timestamp - a.timestamp);
+    const cors = (req, res, next) => {
+      res.set('Access-Control-Allow-Origin', req.get('Origin'));
+      res.set('Access-Control-Allow-Headers', 'Content-Type');
+      res.set('Access-Control-Allow-Credentials', true);
 
-    a.app.get('/servers/server.json', (req, res, next) => {
-      res.json({
-        url: null,
-      });
-    });
-    a.app.get('/servers/servers.json', (req, res, next) => {
+      next();
+    };
+
+    app.get('/prsnt/servers.json', cors, (req, res, next) => {
       res.set('Access-Control-Allow-Origin', '*');
 
       res.json({
         servers: _getServers(),
       });
     });
-    a.app.post('/servers/announce', bodyParserJson, (req, res, next) => {
+    app.post('/prsnt/announce', cors, bodyParserJson, (req, res, next) => {
       const {body: j} = req;
 
       const _isValidProtocol = s => /^https?$/.test(s);
@@ -94,15 +102,52 @@ const listen = (a, config) => {
       }
     });
 
-    accept();
-  });
+    return Promise.resolve(app);
+  }
 
-  return Promise.all([
-    _listenServers(),
-  ])
-  .then(() => {});
-};
+  listen({
+    hostname = null,
+    port = 9999,
+  } = {}) {
+    this.requestApp()
+      .then(app => {
+        http.createServer(app)
+          .listen(port, hostname, err => {
+            if (!err) {
+              console.log(`http://${hostname || '127.0.0.1'}:${port}`);
+            } else {
+              console.warn(err);
+            }
+          });
+      })
+      .catch(err => {
+        console.warn(err);
+      });
+  }
+}
 
-module.exports = {
-  listen,
-};
+module.exports = opts => new Prsnt(opts);
+
+if (!module.parent) {
+  const args = process.argv.slice(2);
+  const _findArg = name => {
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i];
+      const match = arg.match(new RegExp('^' + name + '=(.+)$'));
+      if (match) {
+        return match[1];
+      }
+    }
+    return null;
+  };
+  const host = _findArg('host') || '0.0.0.0';
+  const port = parseInt(_findArg('port'), 10) || 8000;
+  const serverExpiry = parseInt(_findArg('crdsUrl'), 10) || SERVER_EXPIRY;
+
+  new Prsnt()
+    .listen({
+      host,
+      port,
+      serverExpiry,
+    });
+}
