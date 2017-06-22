@@ -90,8 +90,6 @@ class Prsnt {
           serversCache.set(url, server);
 
           res.send();
-
-          console.log('server announce', JSON.stringify([name, address, protocol, port, url]));
         } else {
           res.status(400);
           res.send();
