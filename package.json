@@ -1,0 +1,25 @@
+{
+  "name": "prsnt",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/modulesio/prsnt.git"
+  },
+  "author": "Avaer Kazmer <a@modules.io>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/modulesio/prsnt/issues"
+  },
+  "homepage": "https://github.com/modulesio/prsnt#readme",
+  "dependencies": {
+    "body-parser": "^1.17.2",
+    "ip-address": "^5.8.8",
+    "lru-cache": "^4.1.1",
+    "mkdirp": "^0.5.1"
+  }
+}
