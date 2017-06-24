@@ -21,7 +21,7 @@ class Prsnt {
     const serversCache = new LRU({
       maxAge: serverExpiry,
     });
-    const _ip6To4 = ip6 => new ipAddress.Address6(ip6).to4().address;
+    // const _ip6To4 = ip6 => new ipAddress.Address6(ip6).to4().address;
     // const _ip4To6 = ip4 => '::ffff:' + ip4;
     const _getServers = () => serversCache.keys()
       .map(k => serversCache.get(k))
@@ -29,14 +29,14 @@ class Prsnt {
       .sort((a, b) => b.timestamp - a.timestamp);
 
     class Server {
-      constructor(name, url, protocol, port, users, running, address, timestamp) {
+      constructor(name, url, protocol, address, port, users, running, timestamp) {
         this.name = name;
         this.url = url;
         this.protocol = protocol;
+        this.address = address;
         this.port = port;
         this.users = users;
         this.running = running;
-        this.address = address;
         this.timestamp = timestamp;
       }
     }
@@ -60,40 +60,25 @@ class Prsnt {
       const {body: j} = req;
 
       const _isValidProtocol = s => /^https?$/.test(s);
+      const _isValidAddress = s => /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/.test(s);
 
       if (
         typeof j == 'object' && j !== null &&
         typeof j.name === 'string' &&
         typeof j.protocol === 'string' && _isValidProtocol(j.protocol) &&
+        typeof j.address === 'string' && _isValidAddress(j.address) &&
         typeof j.port === 'number' &&
         Array.isArray(j.users) && j.users.every(user => typeof user === 'string')
       ) {
-        const address = (() => {
-          const {remoteAddress, remoteFamily} = req.connection;
+        const {name, protocol, address, port, users} = j;
+        const url = protocol + '://' + address + ':' + port;
+        const running = true;
+        const timestamp = Date.now();
 
-          if (remoteFamily === 'IPv4') {
-            return remoteAddress;
-          } else if (remoteFamily === 'IPv6') {
-            return _ip6To4(remoteAddress);
-          } else {
-            return null;
-          }
-        })();
+        const server = new Server(name, url, protocol, address, port, users, running, timestamp);
+        serversCache.set(url, server);
 
-        if (address) {
-          const {name, protocol, port, users} = j;
-          const url = protocol + '://' + address + ':' + port;
-          const running = true;
-          const timestamp = Date.now();
-
-          const server = new Server(name, url, protocol, port, users, running, address, timestamp);
-          serversCache.set(url, server);
-
-          res.send();
-        } else {
-          res.status(400);
-          res.send();
-        }
+        res.send();
       } else {
         res.status(400);
         res.send();
