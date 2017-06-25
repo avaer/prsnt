@@ -1,4 +1,5 @@
 const http = require('http');
+const https = require('https');
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -29,14 +30,13 @@ class Prsnt {
       .sort((a, b) => b.timestamp - a.timestamp);
 
     class Server {
-      constructor(name, url, protocol, address, port, users, running, timestamp) {
+      constructor(name, url, protocol, address, port, users, timestamp) {
         this.name = name;
         this.url = url;
         this.protocol = protocol;
         this.address = address;
         this.port = port;
         this.users = users;
-        this.running = running;
         this.timestamp = timestamp;
       }
     }
@@ -74,15 +74,36 @@ class Prsnt {
       ) {
         const {name, protocol, address, port, users, visibility} = j;
         const url = protocol + '://' + address + ':' + port;
-        const running = true;
         const timestamp = Date.now();
 
-        if (visibility === 'public') {
-          const server = new Server(name, url, protocol, address, port, users, running, timestamp);
-          serversCache.set(url, server);
-        }
+        const proxyReq = (protocol === 'http' ? http : https).request({
+          method: 'HEAD',
+          host: address,
+          port: port,
+          timeout: 10 * 1000, // 10 seconds
+        });
+        proxyReq.on('response', proxyRes => {
+          proxyRes.resume();
 
-        res.send();
+          if (proxyRes.statusCode === 200) {
+            if (visibility === 'public') {
+              const server = new Server(name, url, protocol, address, port, users, timestamp);
+              serversCache.set(url, server);
+            }
+
+            res.send();
+          } else {
+            res.status(502);
+            res.send();
+          }
+        });
+        proxyReq.on('error', err => {
+          res.status(500);
+          res.json({
+            error: err.stack,
+          });
+        });
+        proxyReq.end();
       } else {
         res.status(400);
         res.send();
