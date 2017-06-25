@@ -61,6 +61,7 @@ class Prsnt {
 
       const _isValidProtocol = s => /^https?$/.test(s);
       const _isValidAddress = s => /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/.test(s);
+      const _isValidVisibility = s => s === 'public' || s === 'private';
 
       if (
         typeof j == 'object' && j !== null &&
@@ -68,15 +69,18 @@ class Prsnt {
         typeof j.protocol === 'string' && _isValidProtocol(j.protocol) &&
         typeof j.address === 'string' && _isValidAddress(j.address) &&
         typeof j.port === 'number' &&
+        typeof j.visibility === 'string' && _isValidVisibility(j.visibility) &&
         Array.isArray(j.users) && j.users.every(user => typeof user === 'string')
       ) {
-        const {name, protocol, address, port, users} = j;
+        const {name, protocol, address, port, users, visibility} = j;
         const url = protocol + '://' + address + ':' + port;
         const running = true;
         const timestamp = Date.now();
 
-        const server = new Server(name, url, protocol, address, port, users, running, timestamp);
-        serversCache.set(url, server);
+        if (visibility === 'public') {
+          const server = new Server(name, url, protocol, address, port, users, running, timestamp);
+          serversCache.set(url, server);
+        }
 
         res.send();
       } else {
