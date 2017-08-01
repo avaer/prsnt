@@ -8,6 +8,7 @@ const LRU = require('lru-cache');
 const ipAddress = require('ip-address');
 
 const SERVER_EXPIRY = 60 * 1000;
+const PROXY_REQUEST_TIMEOUT = 5 * 1000;
 
 class Prsnt {
   constructor({serverExpiry = SERVER_EXPIRY} = {}) {
@@ -91,7 +92,7 @@ class Prsnt {
           method: 'HEAD',
           host: address,
           port: port,
-          timeout: 10 * 1000, // 10 seconds
+          timeout: PROXY_REQUEST_TIMEOUT,
         });
         proxyReq.on('response', proxyRes => {
           proxyRes.resume();
