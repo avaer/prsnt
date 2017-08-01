@@ -30,7 +30,7 @@ class Prsnt {
       .sort((a, b) => b.timestamp - a.timestamp);
 
     class Server {
-      constructor(name, url, protocol, address, port, users, timestamp) {
+      constructor(name, url, protocol, address, port, users, timestamp, online) {
         this.name = name;
         this.url = url;
         this.protocol = protocol;
@@ -38,6 +38,7 @@ class Prsnt {
         this.port = port;
         this.users = users;
         this.timestamp = timestamp;
+        this.online = online;
       }
     }
 
@@ -73,8 +74,18 @@ class Prsnt {
         Array.isArray(j.users) && j.users.every(user => typeof user === 'string')
       ) {
         const {name, protocol, address, port, users, visibility} = j;
-        const url = protocol + '://' + address + ':' + port;
-        const timestamp = Date.now();
+
+        let server = null;
+        if (visibility === 'public') {
+          const url = protocol + '://' + address + ':' + port;
+          const timestamp = Date.now();
+          const oldOnline = (() => {
+            const oldServer = serversCache.get(url);
+            return Boolean(oldServer) && oldServer.online;
+          })();
+          server = new Server(name, url, protocol, address, port, users, timestamp, oldOnline);
+          serversCache.set(url, server);
+        }
 
         const proxyReq = (protocol === 'http' ? http : https).request({
           method: 'HEAD',
@@ -86,18 +97,25 @@ class Prsnt {
           proxyRes.resume();
 
           if (proxyRes.statusCode === 200) {
-            if (visibility === 'public') {
-              const server = new Server(name, url, protocol, address, port, users, timestamp);
-              serversCache.set(url, server);
+            if (server) {
+              server.online = true;
             }
 
             res.send();
           } else {
+            if (server) {
+              server.online = false;
+            }
+
             res.status(502);
             res.send();
           }
         });
         proxyReq.on('error', err => {
+          if (server) {
+            server.online = false;
+          }
+
           res.status(500);
           res.json({
             error: err.stack,
