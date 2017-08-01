@@ -94,6 +94,9 @@ class Prsnt {
           port: port,
           timeout: PROXY_REQUEST_TIMEOUT,
         });
+        proxyReq.on('timeout', () => {
+          proxyReq.abort();
+        });
         proxyReq.on('response', proxyRes => {
           proxyRes.resume();
 
