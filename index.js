@@ -120,10 +120,15 @@ class Prsnt {
             server.online = false;
           }
 
-          res.status(500);
-          res.json({
-            error: err.stack,
-          });
+          if (err.code === 'ECONNRESET') {
+            res.status(502);
+            res.send();
+          } else {
+            res.status(500);
+            res.json({
+              error: err.stack,
+            });
+          }
         });
         proxyReq.end();
       } else {
