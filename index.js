@@ -120,7 +120,7 @@ class Prsnt {
             server.online = false;
           }
 
-          if (err.code === 'ECONNRESET') {
+          if (err.code === 'EADDRINFO' || err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT') {
             res.status(502);
             res.send();
           } else {
