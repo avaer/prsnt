@@ -12,23 +12,23 @@ const PROXY_REQUEST_TIMEOUT = 5 * 1000;
 
 class Prsnt {
   constructor({serverExpiry = SERVER_EXPIRY} = {}) {
-    this.serverExpiry = serverExpiry;
+    this.serversCache = new LRU({
+      maxAge: serverExpiry,
+    });
+  }
+
+  getServers() {
+    return this.serversCache.keys()
+      .map(k => this.serversCache.get(k))
+      .filter(v => v !== undefined)
+      .sort((a, b) => b.timestamp - a.timestamp);
   }
 
   requestApp() {
-     const {serverExpiry} = this;
-
     const app = express();
 
-    const serversCache = new LRU({
-      maxAge: serverExpiry,
-    });
     // const _ip6To4 = ip6 => new ipAddress.Address6(ip6).to4().address;
     // const _ip4To6 = ip4 => '::ffff:' + ip4;
-    const _getServers = () => serversCache.keys()
-      .map(k => serversCache.get(k))
-      .filter(v => v !== undefined)
-      .sort((a, b) => b.timestamp - a.timestamp);
 
     class Server {
       constructor(name, url, protocol, address, port, users, timestamp, online) {
@@ -54,9 +54,7 @@ class Prsnt {
     app.get('/prsnt/servers.json', cors, (req, res, next) => {
       res.set('Access-Control-Allow-Origin', '*');
 
-      res.json({
-        servers: _getServers(),
-      });
+      res.json(this.getServers());
     });
     app.post('/prsnt/announce', cors, bodyParserJson, (req, res, next) => {
       const {body: j} = req;
@@ -81,11 +79,11 @@ class Prsnt {
           const url = protocol + '://' + address + ':' + port;
           const timestamp = Date.now();
           const oldOnline = (() => {
-            const oldServer = serversCache.get(url);
+            const oldServer = this.serversCache.get(url);
             return Boolean(oldServer) && oldServer.online;
           })();
           server = new Server(name, url, protocol, address, port, users, timestamp, oldOnline);
-          serversCache.set(url, server);
+          this.serversCache.set(url, server);
         }
 
         const proxyReq = (protocol === 'http' ? http : https).request({
@@ -179,10 +177,11 @@ if (!module.parent) {
   const port = parseInt(_findArg('port'), 10) || 8000;
   const serverExpiry = parseInt(_findArg('crdsUrl'), 10) || SERVER_EXPIRY;
 
-  new Prsnt()
+  new Prsnt({
+    serverExpiry,
+  })
     .listen({
       host,
       port,
-      serverExpiry,
     });
 }
